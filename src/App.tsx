@@ -9,8 +9,12 @@ import { getRandomSnippet } from './data/snippets';
 import { Language } from './types';
 import { CodeSnippet } from './data/snippets';
 import { SessionStats } from './types';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import LoginForm from './components/LoginForm';
+import SignupForm from './components/SignupForm';
+import ProtectedRoute from './components/ProtectedRoute';
 
-function App() {
+function Game() {
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('python');
   const [currentSnippet, setCurrentSnippet] = useState<CodeSnippet | null>(null);
   const [showResults, setShowResults] = useState(false);
@@ -18,8 +22,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<'practice' | 'stats'>('practice');
 
   const { updateStats, resetProgress } = useGameStore();
+  const { user } = useAuth();
 
-  // Load initial snippet
   useEffect(() => {
     loadNewSnippet();
   }, [selectedLanguage]);
@@ -31,10 +35,13 @@ function App() {
     setLastSessionStats(null);
   };
 
-  const handleSnippetComplete = (stats: SessionStats) => {
+  const handleSnippetComplete = async (stats: SessionStats) => {
     setLastSessionStats(stats);
     setShowResults(true);
-    updateStats(stats);
+
+    if (user) {
+      await updateStats(stats, user.id);
+    }
   };
 
   const handleNextSnippet = () => {
@@ -45,9 +52,9 @@ function App() {
     setSelectedLanguage(language);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
-      resetProgress();
+      await resetProgress(user?.id);
       loadNewSnippet();
     }
   };
@@ -58,7 +65,6 @@ function App() {
 
       <main className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Tab Navigation */}
           <div className="flex gap-2 mb-6 border-b border-dark-border">
             <button
               onClick={() => setActiveTab('practice')}
@@ -82,7 +88,6 @@ function App() {
             </button>
           </div>
 
-          {/* Practice Tab */}
           {activeTab === 'practice' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -108,7 +113,6 @@ function App() {
             </div>
           )}
 
-          {/* Stats Tab */}
           {activeTab === 'stats' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -126,6 +130,26 @@ function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+function AuthWrapper() {
+  const [showLogin, setShowLogin] = useState(true);
+
+  return showLogin ? (
+    <LoginForm onSwitchToSignup={() => setShowLogin(false)} />
+  ) : (
+    <SignupForm onSwitchToLogin={() => setShowLogin(true)} />
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ProtectedRoute fallback={<AuthWrapper />}>
+        <Game />
+      </ProtectedRoute>
+    </AuthProvider>
   );
 }
 

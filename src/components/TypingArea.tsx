@@ -26,14 +26,12 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     pendingCursorPos.current = null;
     inputRef.current?.focus();
 
-    // Clear any existing timer
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
   }, [snippet]);
 
-  // Handle pending cursor position after state updates
   useEffect(() => {
     if (pendingCursorPos.current !== null && inputRef.current) {
       const pos = pendingCursorPos.current;
@@ -43,7 +41,6 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     }
   }, [userInput]);
 
-  // Timer effect
   useEffect(() => {
     if (startTime && !isComplete) {
       timerRef.current = window.setInterval(() => {
@@ -62,57 +59,51 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     const start = e.currentTarget.selectionStart;
     const end = e.currentTarget.selectionEnd;
 
-    // Handle Tab key (both Tab and Shift+Tab)
     if (e.key === 'Tab') {
       e.preventDefault();
 
       if (e.shiftKey) {
-        // Shift+Tab: Remove indentation (dedent)
         const textBeforeStart = userInput.substring(0, start);
-
-        // Check if there are spaces/tabs before cursor
-        const indentMatch = textBeforeStart.match(/(\s+)$/);
+        const lastNewlineIndex = textBeforeStart.lastIndexOf('\n');
+        const currentLineStart = lastNewlineIndex + 1;
+        const currentLineBeforeCursor = textBeforeStart.substring(currentLineStart);
+        const indentMatch = currentLineBeforeCursor.match(/^(\s+)/);
 
         if (indentMatch) {
-          const indentToRemove = indentMatch[1];
+          const indent = indentMatch[1];
           let removeCount = 0;
 
-          // Remove up to 4 spaces or 1 tab
-          if (indentToRemove.endsWith('\t')) {
+          if (indent.startsWith('\t')) {
             removeCount = 1;
+          } else if (indent.length >= 4) {
+            removeCount = 4;
+          } else if (indent.length >= 2) {
+            removeCount = 2;
           } else {
-            // Remove up to 4 spaces
-            removeCount = Math.min(4, indentToRemove.length);
-            // If there are 2 spaces, remove 2
-            if (indentToRemove.length >= 2 && indentToRemove.length < 4) {
-              removeCount = 2;
-            }
+            removeCount = indent.length;
           }
 
-          const newValue = userInput.substring(0, start - removeCount) + userInput.substring(start);
+          const newValue = userInput.substring(0, currentLineStart) +
+                          userInput.substring(currentLineStart + removeCount);
           setUserInput(newValue);
           pendingCursorPos.current = start - removeCount;
         }
         return;
       }
 
-      // Regular Tab: Add indentation
-      // Determine what to insert based on what's expected in the target code
       const remainingTarget = targetCode.substring(start);
-      let tabString = '    '; // Default: 4 spaces
+      let tabString = '    ';
 
-      // Check if target code has a tab character at this position
       if (remainingTarget.startsWith('\t')) {
         tabString = '\t';
       } else if (remainingTarget.startsWith('    ')) {
-        tabString = '    '; // 4 spaces
+        tabString = '    ';
       } else if (remainingTarget.startsWith('  ')) {
-        tabString = '  '; // 2 spaces
+        tabString = '  ';
       }
 
       const newValue = userInput.substring(0, start) + tabString + userInput.substring(end);
 
-      // Only update if within target length
       if (newValue.length <= targetCode.length) {
         setUserInput(newValue);
         pendingCursorPos.current = start + tabString.length;
@@ -120,49 +111,33 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       return;
     }
 
-    // Handle Enter key - Smart auto-indentation
     if (e.key === 'Enter') {
       e.preventDefault();
 
-      // Get current line to analyze indentation
-      const textBeforeCursor = userInput.substring(0, start);
-      const lines = textBeforeCursor.split('\n');
-      const currentLine = lines[lines.length - 1];
+      const targetAfterCursor = targetCode.substring(start);
+      const nextLineMatch = targetAfterCursor.match(/^\n(\s*)/);
 
-      // Measure current indentation
-      const indentMatch = currentLine.match(/^(\s*)/);
-      const currentIndent = indentMatch ? indentMatch[1] : '';
+      if (nextLineMatch) {
+        const targetIndent = nextLineMatch[1];
+        const newValue = userInput.substring(0, start) + '\n' + targetIndent + userInput.substring(end);
 
-      // Check if current line ends with colon (Python) or opening brace (C++/JS/Rust)
-      const trimmedLine = currentLine.trim();
-      const needsExtraIndent = trimmedLine.endsWith(':') ||
-                               trimmedLine.endsWith('{') ||
-                               trimmedLine.endsWith('(');
-
-      // Determine indentation for next line
-      let nextIndent = currentIndent;
-      if (needsExtraIndent) {
-        // Add one level of indentation
-        const indentUnit = snippet.language === 'javascript' ? '  ' : '    ';
-        nextIndent = currentIndent + indentUnit;
-      }
-
-      const newValue = userInput.substring(0, start) + '\n' + nextIndent + userInput.substring(end);
-
-      // Only update if within target length
-      if (newValue.length <= targetCode.length) {
-        setUserInput(newValue);
-        pendingCursorPos.current = start + 1 + nextIndent.length;
+        if (newValue.length <= targetCode.length) {
+          setUserInput(newValue);
+          pendingCursorPos.current = start + 1 + targetIndent.length;
+        }
+      } else {
+        const newValue = userInput.substring(0, start) + '\n' + userInput.substring(end);
+        if (newValue.length <= targetCode.length) {
+          setUserInput(newValue);
+          pendingCursorPos.current = start + 1;
+        }
       }
       return;
     }
 
-    // Handle Backspace - Smart deletion of auto-paired characters
     if (e.key === 'Backspace' && start === end && start > 0) {
       const charBefore = userInput[start - 1];
       const charAfter = userInput[start];
-
-      // Check if we're deleting an opening bracket/quote with matching closing one
       const pairs: { [key: string]: string } = {
         '(': ')',
         '[': ']',
@@ -174,7 +149,6 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
 
       if (pairs[charBefore] === charAfter) {
         e.preventDefault();
-        // Delete both the opening and closing character
         const newValue = userInput.substring(0, start - 1) + userInput.substring(start + 1);
         setUserInput(newValue);
         pendingCursorPos.current = start - 1;
@@ -182,13 +156,11 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       }
     }
 
-    // Prevent paste
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
       return;
     }
 
-    // Prevent cut
     if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
       e.preventDefault();
       return;
@@ -213,57 +185,25 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       '`': '`',
     };
 
-    // Check if user typed an opening bracket/quote
     if (pairs[data]) {
       e.preventDefault();
       const closingChar = pairs[data];
-
-      // Insert both opening and closing characters at cursor position
       const newValue = userInput.substring(0, start) + data + closingChar + userInput.substring(end);
 
       if (newValue.length <= targetCode.length) {
         setUserInput(newValue);
-        pendingCursorPos.current = start + 1; // Cursor between the pair
+        pendingCursorPos.current = start + 1;
       }
       return;
     }
 
-    // Check if user typed a closing bracket/quote
     const closingChars = [')', ']', '}', '"', "'", '`'];
     if (closingChars.includes(data)) {
-      // If the next character is already the closing character, skip it
       if (userInput[start] === data) {
         e.preventDefault();
-        pendingCursorPos.current = start + 1; // Just move cursor forward
+        pendingCursorPos.current = start + 1;
       }
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-
-    // Start timer on first character
-    if (value.length === 1 && !startTime) {
-      setStartTime(Date.now());
-    }
-
-    // Prevent typing more than target length
-    if (value.length <= targetCode.length) {
-      setUserInput(value);
-
-      // Check if complete
-      if (value.length === targetCode.length && !isComplete) {
-        setIsComplete(true);
-        if (timerRef.current) {
-          window.clearInterval(timerRef.current);
-        }
-        calculateStats(value);
-      }
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
   };
 
   const calculateStats = useCallback(
@@ -271,7 +211,7 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       if (!startTime) return;
 
       const endTime = Date.now();
-      const timeElapsedMinutes = (endTime - startTime) / 1000 / 60; // in minutes
+      const timeElapsedMinutes = (endTime - startTime) / 1000 / 60;
 
       let correctChars = 0;
       let errors = 0;
@@ -285,9 +225,7 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       }
 
       const totalChars = targetCode.length;
-      // WPM calculation: (correct_characters / 5) / time_in_minutes
       const wpm = timeElapsedMinutes > 0 ? Math.round((correctChars / 5) / timeElapsedMinutes) : 0;
-      // Accuracy: (correct_chars / total_chars) * 100
       const accuracy = Math.round((correctChars / totalChars) * 100);
 
       const stats: SessionStats = {
@@ -304,6 +242,32 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     },
     [startTime, targetCode, onComplete]
   );
+
+  useEffect(() => {
+    if (userInput.length === targetCode.length && !isComplete) {
+      setIsComplete(true);
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+      }
+      calculateStats(userInput);
+    }
+  }, [userInput, targetCode.length, isComplete, calculateStats]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+
+    if (value.length === 1 && !startTime) {
+      setStartTime(Date.now());
+    }
+
+    if (value.length <= targetCode.length) {
+      setUserInput(value);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
 
   const getCharClass = (index: number): string => {
     if (index >= userInput.length) {
@@ -337,7 +301,6 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {/* Stats Display */}
       <div className="flex justify-between items-center mb-4 text-sm">
         <div className="flex gap-6">
           <div>
@@ -366,7 +329,6 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
         </div>
       </div>
 
-      {/* Code Display - Non-selectable */}
       <div className="relative bg-dark-card border border-dark-border rounded-lg p-6 mb-4 select-none">
         <div className="absolute top-2 right-2 text-xs text-dark-muted uppercase">
           {snippet.language}
@@ -380,7 +342,6 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
         </pre>
       </div>
 
-      {/* Code Editor Input Area */}
       <div className="relative">
         <textarea
           ref={inputRef}
