@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
+    "@supabase/supabase-js": "^2.77.0",
+    "heroicons": "^2.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "zustand": "^4.5.2",
-    "heroicons": "^2.1.1"
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
