@@ -14,10 +14,38 @@
 - **XP System**: Earn XP based on your WPM and accuracy
 - **Level Progression**: Level up as you earn more XP (100 XP per level)
 
-## Setup
+### User Authentication & Cloud Persistence
+
+- **Supabase Authentication**: Secure email/password signup and login
+- **Cloud Storage**: All progress synced to Supabase PostgreSQL database
+- **Cross-Device**: Access your stats from anywhere
+- **Row-Level Security**: Your data is protected and isolated
+
+## Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-npm install && npm run dev
+npm install
+```
+
+### 2. Configure Supabase
+
+Create a `.env` file in the project root:
+
+```env
+VITE_SUPABASE_URL=your-project-url.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+### 3. Run the App
+
+```bash
+npm run dev
 ```
 
 Then open http://localhost:5173
+
+### 4. Create an Account
+
+- Sign up with email and password -> verify email
