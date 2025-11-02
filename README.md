@@ -1,6 +1,9 @@
 # CodeType
 
 **CodeType** is a gamified typing practice tool specifically designed for programmers. Unlike traditional typing tests, CodeType lets you practice typing real code snippets in Python, JavaScript, C++, and Rust with gamified progression.
+<img width="671" height="419" alt="image" src="https://github.com/user-attachments/assets/a667fdca-ca65-46b0-9ef8-f132e53d887f" />
+<img width="671" height="419" alt="image" src="https://github.com/user-attachments/assets/2b5d26a0-7432-4b30-a2ca-12a0790bfc2a" />
+
 
 ### Core Features
 
