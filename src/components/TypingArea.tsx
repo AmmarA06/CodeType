@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CodeSnippet } from '../data/snippets';
-import { SessionStats } from '../types';
+import { SessionStats, WPMSnapshot, ErrorEvent } from '../types';
 
 interface TypingAreaProps {
   snippet: CodeSnippet;
@@ -14,7 +14,12 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
   const [isComplete, setIsComplete] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<number | null>(null);
+  const wpmTrackerRef = useRef<number | null>(null);
   const pendingCursorPos = useRef<number | null>(null);
+  const wpmHistoryRef = useRef<WPMSnapshot[]>([]);
+  const errorHistoryRef = useRef<ErrorEvent[]>([]);
+  const totalCharsTypedRef = useRef<number>(0);
+  const lastInputLengthRef = useRef<number>(0);
 
   const targetCode = snippet.code;
 
@@ -24,11 +29,19 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     setElapsedTime(0);
     setIsComplete(false);
     pendingCursorPos.current = null;
+    wpmHistoryRef.current = [];
+    errorHistoryRef.current = [];
+    totalCharsTypedRef.current = 0;
+    lastInputLengthRef.current = 0;
     inputRef.current?.focus();
 
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (wpmTrackerRef.current) {
+      window.clearInterval(wpmTrackerRef.current);
+      wpmTrackerRef.current = null;
     }
   }, [snippet]);
 
@@ -46,14 +59,32 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
       timerRef.current = window.setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
       }, 1000);
+
+      wpmTrackerRef.current = window.setInterval(() => {
+        const timeElapsedMinutes = (Date.now() - startTime) / 1000 / 60;
+        if (timeElapsedMinutes === 0) return;
+
+        const correctChars = userInput.split('').filter((char, i) => char === targetCode[i]).length;
+        const wpm = Math.round((correctChars / 5) / timeElapsedMinutes);
+        const rawWpm = Math.round((totalCharsTypedRef.current / 5) / timeElapsedMinutes);
+
+        wpmHistoryRef.current.push({
+          time: Date.now() - startTime,
+          wpm,
+          rawWpm
+        });
+      }, 500);
     }
 
     return () => {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
       }
+      if (wpmTrackerRef.current) {
+        window.clearInterval(wpmTrackerRef.current);
+      }
     };
-  }, [startTime, isComplete]);
+  }, [startTime, isComplete, userInput, targetCode]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const start = e.currentTarget.selectionStart;
@@ -226,7 +257,18 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
 
       const totalChars = targetCode.length;
       const wpm = timeElapsedMinutes > 0 ? Math.round((correctChars / 5) / timeElapsedMinutes) : 0;
+      const rawWPM = timeElapsedMinutes > 0 ? Math.round((totalCharsTypedRef.current / 5) / timeElapsedMinutes) : 0;
       const accuracy = Math.round((correctChars / totalChars) * 100);
+
+      // Calculate consistency (standard deviation of WPM)
+      let consistency = 100;
+      if (wpmHistoryRef.current.length > 1) {
+        const wpmValues = wpmHistoryRef.current.map(snapshot => snapshot.wpm);
+        const mean = wpmValues.reduce((sum, val) => sum + val, 0) / wpmValues.length;
+        const variance = wpmValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / wpmValues.length;
+        const stdDev = Math.sqrt(variance);
+        consistency = Math.max(0, Math.round(100 - (stdDev / mean) * 100));
+      }
 
       const stats: SessionStats = {
         startTime,
@@ -236,6 +278,10 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
         correctChars,
         totalChars,
         errors,
+        wpmHistory: wpmHistoryRef.current,
+        errorHistory: errorHistoryRef.current,
+        rawWPM,
+        consistency,
       };
 
       setTimeout(() => onComplete(stats), 500);
@@ -261,6 +307,25 @@ export const TypingArea = ({ snippet, onComplete }: TypingAreaProps) => {
     }
 
     if (value.length <= targetCode.length) {
+      // Track total characters typed (including corrections)
+      if (value.length > lastInputLengthRef.current) {
+        const charsAdded = value.length - lastInputLengthRef.current;
+        totalCharsTypedRef.current += charsAdded;
+
+        // Track errors
+        if (startTime) {
+          for (let i = lastInputLengthRef.current; i < value.length; i++) {
+            if (value[i] !== targetCode[i]) {
+              errorHistoryRef.current.push({
+                time: Date.now() - startTime,
+                charIndex: i
+              });
+            }
+          }
+        }
+      }
+
+      lastInputLengthRef.current = value.length;
       setUserInput(value);
     }
   };

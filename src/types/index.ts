@@ -21,6 +21,17 @@ export interface GameStats {
   lastSessionAccuracy?: number;
 }
 
+export interface WPMSnapshot {
+  time: number;
+  wpm: number;
+  rawWpm: number;
+}
+
+export interface ErrorEvent {
+  time: number;
+  charIndex: number;
+}
+
 export interface SessionStats {
   startTime: number;
   endTime?: number;
@@ -29,6 +40,10 @@ export interface SessionStats {
   correctChars: number;
   totalChars: number;
   errors: number;
+  wpmHistory?: WPMSnapshot[];
+  errorHistory?: ErrorEvent[];
+  rawWPM?: number;
+  consistency?: number;
 }
 
 export type Language = 'python' | 'javascript' | 'cpp' | 'rust';
