@@ -82,7 +82,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   createInitialStats: async (userId: string) => {
     try {
-      const { data, error } = await supabase.from('user_stats').insert({
+      const { error } = await supabase.from('user_stats').insert({
         user_id: userId,
         total_snippets: 0,
         total_chars: 0,
